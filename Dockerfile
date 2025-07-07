@@ -1,5 +1,5 @@
-# XVerse Dockerfile - Multi-Subject Image Synthesis
-FROM nvidia/cuda:12.4-devel-ubuntu22.04
+# XVerse Dockerfile - Multi-Subject Image Synthesis  
+FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
 
 # 构建参数
 ARG VERSION="latest"
@@ -38,6 +38,10 @@ RUN apt-get update && apt-get install -y \
     wget \
     curl \
     build-essential \
+    gcc \
+    g++ \
+    make \
+    ninja-build \
     libgl1-mesa-glx \
     libglib2.0-0 \
     libsm6 \
@@ -53,8 +57,8 @@ RUN ln -s /usr/bin/python3.10 /usr/bin/python
 # 升级pip
 RUN python -m pip install --upgrade pip
 
-# 安装PyTorch (CUDA 12.4版本)
-RUN pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+# 安装PyTorch (CUDA 11.8版本 - 稳定兼容版本)
+RUN pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu118
 
 # 复制requirements.txt并安装Python依赖
 COPY XVerse/requirements.txt /app/requirements.txt
