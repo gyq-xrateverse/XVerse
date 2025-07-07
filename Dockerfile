@@ -61,7 +61,7 @@ RUN python -m pip install --upgrade pip
 RUN pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu118
 
 # 复制requirements.txt并安装Python依赖
-COPY XVerse/requirements.txt /app/requirements.txt
+COPY requirements.txt /app/requirements.txt
 RUN pip install -r requirements.txt
 
 # 安装flash-attn (需要单独安装)
@@ -74,7 +74,7 @@ RUN pip install httpx==0.23.3
 RUN pip install huggingface_hub[cli]
 
 # 复制项目代码
-COPY XVerse/ /app/
+COPY . /app/
 
 # 创建checkpoints目录
 RUN mkdir -p /app/checkpoints
@@ -89,8 +89,8 @@ ENV DPG_VQA_MODEL_PATH="/app/checkpoints/mplug_visual-question-answering_coco_la
 ENV DINO_MODEL_PATH="/app/checkpoints/dino-vits16"
 
 # 复制启动脚本
-COPY entrypoint.sh /app/entrypoint.sh
-COPY download_models.sh /app/download_models.sh
+COPY file/entrypoint.sh /app/entrypoint.sh
+COPY file/download_models.sh /app/download_models.sh
 RUN chmod +x /app/entrypoint.sh /app/download_models.sh
 
 # 暴露端口
