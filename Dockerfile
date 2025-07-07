@@ -1,5 +1,5 @@
 # XVerse Dockerfile - Multi-Subject Image Synthesis  
-FROM nvidia/cuda:11.8.0-runtime-ubuntu22.04
+FROM nvidia/cuda:11.8.0-devel-ubuntu22.04
 
 # 构建参数
 ARG VERSION="latest"
@@ -65,6 +65,9 @@ COPY requirements.txt /app/requirements.txt
 RUN pip install -r requirements.txt
 
 # 安装flash-attn (需要单独安装)
+# 设置编译环境变量确保CUDA工具链可用
+ENV TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6"
+ENV FLASH_ATTENTION_FORCE_BUILD=TRUE
 RUN pip install flash-attn==2.7.4.post1 --no-build-isolation
 
 # 更新httpx版本
