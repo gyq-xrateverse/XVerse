@@ -65,14 +65,17 @@ COPY requirements.txt /app/requirements.txt
 RUN pip install -r requirements.txt
 
 # 安装flash-attn (使用预编译wheel避免长时间编译)
-# 优先尝试预编译wheel，失败则从源码编译
-RUN pip install flash-attn==2.7.4.post1 --no-build-isolation || \
-    (echo "预编译wheel安装失败，尝试从GitHub下载预编译版本..." && \
-     pip install https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiFALSE-cp310-cp310-linux_x86_64.whl || \
-     (echo "预编译版本不可用，从源码编译（这将需要很长时间）..." && \
-      export TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6" && \
-      export FLASH_ATTENTION_FORCE_BUILD=TRUE && \
-      pip install flash-attn==2.7.4.post1 --no-build-isolation))
+# 多级fallback策略：vllm-flash-attn -> conda预编译 -> 源码编译
+RUN pip install vllm-flash-attn==2.6.2 || \
+    (echo "vllm-flash-attn安装失败，尝试原版flash-attn..." && \
+     pip install flash-attn==2.7.4.post1 --no-build-isolation || \
+     (echo "pip安装失败，尝试从conda-forge下载预编译版本..." && \
+      wget -O /tmp/flash_attn.whl https://conda.anaconda.org/conda-forge/linux-64/flash-attn-2.7.4-py310hf0971bd_1.conda && \
+      pip install /tmp/flash_attn.whl || \
+      (echo "预编译版本不可用，从源码编译（这将需要很长时间）..." && \
+       export TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6" && \
+       export FLASH_ATTENTION_FORCE_BUILD=TRUE && \
+       pip install flash-attn==2.7.4.post1 --no-build-isolation)))
 
 # 更新httpx版本
 RUN pip install httpx==0.23.3

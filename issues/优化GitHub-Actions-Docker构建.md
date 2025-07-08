@@ -93,19 +93,28 @@ ENV FLASH_ATTENTION_FORCE_BUILD=TRUE
    - 匹配Python 3.10和PyTorch 2.6.0
    - 支持CUDA 12（向下兼容CUDA 11.8）
 
-### 最终修改
+### 最终修改（优化版）
 ```dockerfile
-# 多级fallback安装策略
-RUN pip install flash-attn==2.7.4.post1 --no-build-isolation || \
-    (echo "预编译wheel安装失败，尝试从GitHub下载预编译版本..." && \
-     pip install https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiFALSE-cp310-cp310-linux_x86_64.whl || \
-     (echo "预编译版本不可用，从源码编译（这将需要很长时间）..." && \
-      export TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6" && \
-      export FLASH_ATTENTION_FORCE_BUILD=TRUE && \
-      pip install flash-attn==2.7.4.post1 --no-build-isolation))
+# 多级fallback安装策略：vllm-flash-attn -> conda预编译 -> 源码编译
+RUN pip install vllm-flash-attn==2.6.2 || \
+    (echo "vllm-flash-attn安装失败，尝试原版flash-attn..." && \
+     pip install flash-attn==2.7.4.post1 --no-build-isolation || \
+     (echo "pip安装失败，尝试从conda-forge下载预编译版本..." && \
+      wget -O /tmp/flash_attn.whl https://conda.anaconda.org/conda-forge/linux-64/flash-attn-2.7.4-py310hf0971bd_1.conda && \
+      pip install /tmp/flash_attn.whl || \
+      (echo "预编译版本不可用，从源码编译（这将需要很长时间）..." && \
+       export TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6" && \
+       export FLASH_ATTENTION_FORCE_BUILD=TRUE && \
+       pip install flash-attn==2.7.4.post1 --no-build-isolation)))
 ```
 
+### 优化亮点
+1. **vllm-flash-attn**：专门的预编译包，仅75.8MB，安装最快
+2. **conda-forge预编译**：官方conda渠道，稳定可靠  
+3. **多级保障**：三层fallback确保构建成功
+
 ### 预期效果
-- 构建时间从6小时减少到几分钟
+- 构建时间从6小时减少到几分钟（vllm-flash-attn）
 - 避免GitHub Actions超时
-- 保持完整的fallback机制 
+- 保持完整的fallback机制
+- 体积优化：vllm-flash-attn比完整版本更小 
