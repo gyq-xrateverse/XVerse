@@ -1,0 +1,51 @@
+services:
+  xverse:
+    image: g-chqo4329-docker.pkg.coding.net/beilv-ai/tools/xverse:latest
+    container_name: xverse-app
+    restart: unless-stopped
+    
+    # GPU 支持
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    
+    # 端口映射
+    ports:
+      - "7860:7860"
+    
+    # 文件夹映射
+    volumes:
+      - ./checkpoints:/app/checkpoints
+      - ./outputs:/app/outputs  # 可选：映射输出文件夹
+    
+    # 环境变量
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=compute,utility
+      - START_MODE=gradio  # 启动模式：gradio (默认) 或 bash
+      
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:7860"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    
+    # 日志配置
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+# 可选：创建命名卷用于持久化存储
+volumes:
+  checkpoints:
+    driver: local
+  outputs:
+    driver: local 
