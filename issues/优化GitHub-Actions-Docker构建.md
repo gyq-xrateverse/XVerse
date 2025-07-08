@@ -117,4 +117,34 @@ RUN pip install vllm-flash-attn==2.6.2 || \
 - 构建时间从6小时减少到几分钟（vllm-flash-attn）
 - 避免GitHub Actions超时
 - 保持完整的fallback机制
-- 体积优化：vllm-flash-attn比完整版本更小 
+- 体积优化：vllm-flash-attn比完整版本更小
+
+## 磁盘空间与版本冲突修复
+
+### 新发现问题
+1. **磁盘空间不足**：`OSError: [Errno 28] No space left on device`
+2. **CUDA版本冲突**：vllm-flash-attn需要CUDA 12，与现有PyTorch 2.6.0+CUDA 11.8冲突
+
+### 最终解决方案
+```dockerfile
+# 磁盘空间优化 + 精准版本匹配
+RUN pip cache purge && \
+    # 直接安装兼容当前PyTorch 2.6.0+CUDA 11.8的版本
+    pip install flash-attn==2.7.4.post1 --no-build-isolation --no-cache-dir || \
+    # 备选：专门针对CUDA 11.8+PyTorch 2.6的预编译wheel
+    pip install https://github.com/jllllll/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1%2Bcu118torch2.6cxx11abiFALSE-cp310-cp310-linux_x86_64.whl --no-cache-dir
+```
+
+### 优化措施
+1. **磁盘空间管理**：使用 `--no-cache-dir` 和 `pip cache purge`
+2. **版本精准匹配**：使用与PyTorch 2.6.0+CUDA 11.8完全兼容的预编译wheel
+3. **简化策略**：移除会引起CUDA版本冲突的vllm-flash-attn
+
+### 最终状态
+- [x] 基础镜像修正完成
+- [x] 编译环境变量添加完成
+- [x] flash-attn编译错误修复完成
+- [x] 预编译wheel多级fallback策略实施完成
+- [x] GitHub Actions超时时间延长完成
+- [x] 磁盘空间不足问题修复完成
+- [x] CUDA版本冲突问题解决完成 

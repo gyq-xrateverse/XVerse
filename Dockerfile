@@ -62,20 +62,25 @@ RUN pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url h
 
 # 复制requirements.txt并安装Python依赖
 COPY requirements.txt /app/requirements.txt
-RUN pip install -r requirements.txt
+# 安装Python依赖包 (分批安装，及时清理缓存释放磁盘空间)
+RUN pip install -r requirements.txt --no-cache-dir && \
+    # 清理包管理器缓存
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    pip cache purge
 
 # 安装flash-attn (使用预编译wheel避免长时间编译)
-# 多级fallback策略：vllm-flash-attn -> conda预编译 -> 源码编译
-RUN pip install vllm-flash-attn==2.6.2 || \
-    (echo "vllm-flash-attn安装失败，尝试原版flash-attn..." && \
-     pip install flash-attn==2.7.4.post1 --no-build-isolation || \
-     (echo "pip安装失败，尝试从conda-forge下载预编译版本..." && \
-      wget -O /tmp/flash_attn.whl https://conda.anaconda.org/conda-forge/linux-64/flash-attn-2.7.4-py310hf0971bd_1.conda && \
-      pip install /tmp/flash_attn.whl || \
-      (echo "预编译版本不可用，从源码编译（这将需要很长时间）..." && \
-       export TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6" && \
-       export FLASH_ATTENTION_FORCE_BUILD=TRUE && \
-       pip install flash-attn==2.7.4.post1 --no-build-isolation)))
+# 清理pip缓存释放磁盘空间，然后尝试多级fallback策略
+RUN pip cache purge && \
+    # 直接尝试安装兼容当前PyTorch版本的flash-attn
+    pip install flash-attn==2.7.4.post1 --no-build-isolation --no-cache-dir || \
+    (echo "直接安装失败，尝试预编译wheel..." && \
+     # 下载轻量级预编译版本
+     pip install https://github.com/jllllll/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1%2Bcu118torch2.6cxx11abiFALSE-cp310-cp310-linux_x86_64.whl --no-cache-dir || \
+     (echo "GitHub预编译版本失败，从源码编译（这将需要很长时间）..." && \
+      export TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6" && \
+      export FLASH_ATTENTION_FORCE_BUILD=TRUE && \
+      pip install flash-attn==2.7.4.post1 --no-build-isolation --no-cache-dir))
 
 # 更新httpx版本
 RUN pip install httpx==0.23.3
