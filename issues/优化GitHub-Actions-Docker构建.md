@@ -73,4 +73,39 @@ ENV FLASH_ATTENTION_FORCE_BUILD=TRUE
 ### 状态更新
 - [x] 基础镜像修正完成
 - [x] 编译环境变量添加完成
-- [x] flash-attn编译错误修复完成 
+- [x] flash-attn编译错误修复完成
+
+## 进一步优化：使用预编译wheel
+
+### 优化背景
+虽然修复了编译环境，但flash-attn从源码编译仍需要6小时以上，导致GitHub Actions超时。
+
+### 最终解决方案
+1. **多级fallback策略**：
+   - 首先尝试pip安装（可能有预编译版本）
+   - 失败则从GitHub下载官方预编译wheel
+   - 最后才从源码编译
+   
+2. **增加构建超时**：设置为180分钟防止意外超时
+
+3. **预编译wheel选择**：
+   - 使用 `flash_attn-2.7.4.post1+cu12torch2.6cxx11abiFALSE-cp310-cp310-linux_x86_64.whl`
+   - 匹配Python 3.10和PyTorch 2.6.0
+   - 支持CUDA 12（向下兼容CUDA 11.8）
+
+### 最终修改
+```dockerfile
+# 多级fallback安装策略
+RUN pip install flash-attn==2.7.4.post1 --no-build-isolation || \
+    (echo "预编译wheel安装失败，尝试从GitHub下载预编译版本..." && \
+     pip install https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiFALSE-cp310-cp310-linux_x86_64.whl || \
+     (echo "预编译版本不可用，从源码编译（这将需要很长时间）..." && \
+      export TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6" && \
+      export FLASH_ATTENTION_FORCE_BUILD=TRUE && \
+      pip install flash-attn==2.7.4.post1 --no-build-isolation))
+```
+
+### 预期效果
+- 构建时间从6小时减少到几分钟
+- 避免GitHub Actions超时
+- 保持完整的fallback机制 
