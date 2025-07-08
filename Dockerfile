@@ -28,7 +28,7 @@ ENV XVERSE_VERSION="${VERSION}"
 # 设置工作目录
 WORKDIR /app
 
-# 安装系统依赖
+# 安装系统依赖、Python环境和所有依赖 (合并 RUN 指令减少镜像层)
 RUN apt-get update && apt-get install -y \
     python3.10 \
     python3.10-dev \
@@ -49,42 +49,22 @@ RUN apt-get update && apt-get install -y \
     libxrender-dev \
     libgomp1 \
     libgcc-s1 \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/bin/python3.10 /usr/bin/python \
+    && python -m pip install --upgrade pip \
+    && pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu118 --no-cache-dir
 
-# 创建软链接
-RUN ln -s /usr/bin/python3.10 /usr/bin/python
-
-# 升级pip
-RUN python -m pip install --upgrade pip
-
-# 安装PyTorch (CUDA 11.8版本 - 稳定兼容版本)
-RUN pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu118
-
-# 复制requirements.txt并安装Python依赖
+# 复制requirements.txt并安装Python依赖 (单独层便于缓存)
 COPY requirements.txt /app/requirements.txt
-# 安装Python依赖包 (分批安装，及时清理缓存释放磁盘空间)
-RUN pip install -r requirements.txt --no-cache-dir && \
-    # 清理包管理器缓存
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    pip cache purge
-
-# 跳过flash-attn安装 (用户要求先完成构建，后续手动安装)
-RUN pip cache purge && \
-    # 激进的磁盘空间清理
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
-    find /usr/local -name "*.pyc" -delete && \
-    find /usr/local -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true && \
-    df -h && \
-    echo "跳过flash-attn安装，使用torch原生attention。用户可后续手动安装flash-attn。" && \
-    echo "# flash-attn已跳过安装，如需要请运行: pip install flash-attn" > /usr/local/lib/python3.10/dist-packages/flash_attn_install_note.txt
-
-# 更新httpx版本
-RUN pip install httpx==0.23.3
-
-# 安装HuggingFace CLI
-RUN pip install huggingface_hub[cli]
+RUN pip install -r requirements.txt --no-cache-dir \
+    && pip install httpx==0.23.3 huggingface_hub[cli] --no-cache-dir \
+    && pip cache purge \
+    && rm -rf /tmp/* /var/tmp/* \
+    && find /usr/local -name "*.pyc" -delete \
+    && find /usr/local -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true \
+    && echo "跳过flash-attn安装，使用torch原生attention。用户可后续手动安装flash-attn。" \
+    && echo "# flash-attn已跳过安装，如需要请运行: pip install flash-attn" > /usr/local/lib/python3.10/dist-packages/flash_attn_install_note.txt \
+    && df -h
 
 # 复制项目代码
 COPY . /app/

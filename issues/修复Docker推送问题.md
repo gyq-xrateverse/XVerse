@@ -70,9 +70,36 @@ docker run --gpus all -p 7860:7860 g-chqo4329-docker.pkg.coding.net/beilv-ai/too
 
 - `.github/workflows/build-and-push-docker.yml`：主要修改文件
 
+## 磁盘空间问题修复
+
+### 新增问题
+在修复推送问题后，遇到了 GitHub Actions Runner 磁盘空间不足的问题：
+```
+System.IO.IOException: No space left on device
+```
+
+### 解决方案
+1. **工作流优化**
+   - 添加磁盘空间监控步骤
+   - 增加系统清理步骤（APT缓存、Docker缓存、临时文件）
+   - 调整Docker缓存策略（mode=min）
+   - 构建后立即清理缓存
+
+2. **Dockerfile优化**
+   - 合并多个RUN指令减少镜像层数
+   - 在同一层中安装依赖并立即清理缓存
+   - 使用`--no-cache-dir`标志避免pip缓存积累
+   - 及时删除临时文件和编译缓存
+
+### 主要修改
+- 工作流添加磁盘监控和清理步骤
+- Dockerfile合并RUN指令，减少临时空间占用
+- 调整缓存策略为最小模式
+
 ## 测试验证
 
 下次触发工作流时验证：
 1. 标签格式是否正确
 2. 推送是否成功
-3. 镜像是否可正常拉取和运行 
+3. 磁盘空间是否充足
+4. 镜像是否可正常拉取和运行 

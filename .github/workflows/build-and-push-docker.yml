@@ -26,6 +26,13 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: 检查初始磁盘空间
+        run: |
+          echo "=== 初始磁盘空间检查 ==="
+          df -h
+          echo "=== Docker 空间使用 ==="
+          docker system df || true
           
       - name: 获取版本信息
         id: version
@@ -44,6 +51,29 @@ jobs:
             echo "Version from commit: $VERSION"
           fi
           
+      - name: 清理系统空间
+        run: |
+          echo "=== 开始系统清理 ==="
+          # 清理 APT 缓存
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+          
+          # 清理不必要的软件包
+          sudo apt-get autoremove -y
+          
+          # 清理 Docker 系统
+          docker system prune -f
+          
+          # 清理临时文件
+          sudo rm -rf /tmp/*
+          sudo rm -rf /var/tmp/*
+          
+          # 清理日志文件
+          sudo journalctl --vacuum-time=1d
+          
+          echo "=== 清理后磁盘空间 ==="
+          df -h
+
       - name: 设置Docker Buildx
         uses: docker/setup-buildx-action@v3
 
@@ -85,6 +115,13 @@ jobs:
           # 尝试拉取现有镜像来验证仓库访问权限（如果失败也继续）
           docker pull $FULL_IMAGE_NAME:latest || echo "仓库中暂无 latest 标签（正常情况）"
             
+      - name: 构建前磁盘空间检查
+        run: |
+          echo "=== 构建前磁盘空间 ==="
+          df -h
+          echo "=== Docker 空间使用 ==="
+          docker system df
+
       - name: 构建并推送 XVerse Docker 镜像
         uses: docker/build-push-action@v5
         with:
@@ -103,12 +140,23 @@ jobs:
             org.opencontainers.image.revision=${{ github.sha }}
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
           cache-from: type=gha
-          cache-to: type=gha,mode=max
+          cache-to: type=gha,mode=min
           build-args: |
             VERSION=${{ env.VERSION }}
             BUILD_DATE=${{ steps.date.outputs.date }}
             VCS_REF=${{ github.sha }}
         timeout-minutes: 180
+
+      - name: 构建后空间清理
+        if: always()
+        run: |
+          echo "=== 构建后磁盘空间 ==="
+          df -h
+          echo "=== 清理构建缓存 ==="
+          docker builder prune -f
+          docker system prune -f
+          echo "=== 清理后磁盘空间 ==="
+          df -h
 
       - name: 推送失败重试
         if: failure() && github.event_name != 'pull_request'
