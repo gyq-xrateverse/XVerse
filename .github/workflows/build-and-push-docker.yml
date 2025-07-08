@@ -13,8 +13,10 @@ on:
       - master
 
 env:
-  CODING_DOCKER_REGISTRY: ${{ secrets.CODING_DOCKER_REGISTRY }}
-  CODING_DOCKER_IMAGE: ${{ secrets.CODING_DOCKER_REGISTRY }}/xverse
+  CODING_DOCKER_REGISTRY: g-chqo4329-docker.pkg.coding.net
+  CODING_PROJECT: beilv-ai
+  CODING_PACKAGE: tools
+  DOCKER_IMAGE_NAME: xverse
 
 jobs:
   build-and-push:
@@ -45,12 +47,12 @@ jobs:
       - name: 设置Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      - name: 获取当前日期
+        id: date
+        run: echo "date=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
+
       - name: 检查必需的 Secrets
         run: |
-          if [ -z "${{ secrets.CODING_DOCKER_REGISTRY }}" ]; then
-            echo "❌ CODING_DOCKER_REGISTRY secret 未配置"
-            exit 1
-          fi
           if [ -z "${{ secrets.CODING_DOCKER_USER }}" ]; then
             echo "❌ CODING_DOCKER_USER secret 未配置"
             exit 1
@@ -60,29 +62,29 @@ jobs:
             exit 1
           fi
           echo "✅ 所有必需的 Secrets 已配置"
+          echo "Registry: ${{ env.CODING_DOCKER_REGISTRY }}"
+          echo "Project: ${{ env.CODING_PROJECT }}"
+          echo "Package: ${{ env.CODING_PACKAGE }}"
+          echo "Image: ${{ env.DOCKER_IMAGE_NAME }}"
 
       - name: 登录腾讯Coding容器镜像仓库
         if: github.event_name != 'pull_request'
         uses: docker/login-action@v3
         with:
-          registry: ${{ secrets.CODING_DOCKER_REGISTRY }}
+          registry: ${{ env.CODING_DOCKER_REGISTRY }}
           username: ${{ secrets.CODING_DOCKER_USER }}
           password: ${{ secrets.CODING_DOCKER_TOKEN }}
-            
-      - name: 提取元数据
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: ${{ env.CODING_DOCKER_IMAGE }}
-          tags: |
-            type=ref,event=branch
-            type=ref,event=pr
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}}
-            type=raw,value=latest,enable={{is_default_branch}}
-            type=raw,value=${{ env.VERSION }}
 
+      - name: 验证仓库连通性
+        if: github.event_name != 'pull_request'
+        run: |
+          echo "验证仓库连通性..."
+          FULL_IMAGE_NAME="${{ env.CODING_DOCKER_REGISTRY }}/${{ env.CODING_PROJECT }}/${{ env.CODING_PACKAGE }}/${{ env.DOCKER_IMAGE_NAME }}"
+          echo "完整镜像名称: $FULL_IMAGE_NAME"
+          
+          # 尝试拉取现有镜像来验证仓库访问权限（如果失败也继续）
+          docker pull $FULL_IMAGE_NAME:latest || echo "仓库中暂无 latest 标签（正常情况）"
+            
       - name: 构建并推送 XVerse Docker 镜像
         uses: docker/build-push-action@v5
         with:
@@ -90,27 +92,63 @@ jobs:
           file: ./Dockerfile
           push: ${{ github.event_name != 'pull_request' }}
           platforms: linux/amd64
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          tags: |
+            ${{ env.CODING_DOCKER_REGISTRY }}/${{ env.CODING_PROJECT }}/${{ env.CODING_PACKAGE }}/${{ env.DOCKER_IMAGE_NAME }}:latest
+            ${{ env.CODING_DOCKER_REGISTRY }}/${{ env.CODING_PROJECT }}/${{ env.CODING_PACKAGE }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.VERSION }}
+          labels: |
+            org.opencontainers.image.title=XVerse
+            org.opencontainers.image.description=Multi-Subject Image Synthesis via DiT Modulation
+            org.opencontainers.image.version=${{ env.VERSION }}
+            org.opencontainers.image.created=${{ steps.date.outputs.date }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.source=https://github.com/${{ github.repository }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           build-args: |
             VERSION=${{ env.VERSION }}
-            BUILD_DATE=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+            BUILD_DATE=${{ steps.date.outputs.date }}
             VCS_REF=${{ github.sha }}
         timeout-minutes: 180
+
+      - name: 推送失败重试
+        if: failure() && github.event_name != 'pull_request'
+        run: |
+          echo "首次推送失败，尝试重试..."
+          sleep 30
+          
+          FULL_IMAGE_NAME="${{ env.CODING_DOCKER_REGISTRY }}/${{ env.CODING_PROJECT }}/${{ env.CODING_PACKAGE }}/${{ env.DOCKER_IMAGE_NAME }}"
+          
+          # 重新登录
+          echo "${{ secrets.CODING_DOCKER_TOKEN }}" | docker login ${{ env.CODING_DOCKER_REGISTRY }} -u "${{ secrets.CODING_DOCKER_USER }}" --password-stdin
+          
+          # 重试推送 latest
+          docker tag $FULL_IMAGE_NAME:${{ env.VERSION }} $FULL_IMAGE_NAME:latest
+          docker push $FULL_IMAGE_NAME:latest
+          
+          # 重试推送版本标签
+          docker push $FULL_IMAGE_NAME:${{ env.VERSION }}
           
       - name: 构建状态通知
         if: always()
         run: |
+          FULL_IMAGE_NAME="${{ env.CODING_DOCKER_REGISTRY }}/${{ env.CODING_PROJECT }}/${{ env.CODING_PACKAGE }}/${{ env.DOCKER_IMAGE_NAME }}"
+          
           if [ "${{ job.status }}" = "success" ]; then
             echo "✅ XVerse Docker 镜像构建成功!"
             echo "镜像版本: ${{ env.VERSION }}"
             echo "构建平台: linux/amd64"
             echo "镜像仓库: ${{ env.CODING_DOCKER_REGISTRY }}"
-            echo "镜像名称: ${{ env.CODING_DOCKER_IMAGE }}"
+            echo "完整镜像名称: $FULL_IMAGE_NAME"
+            echo "可用标签:"
+            echo "  - $FULL_IMAGE_NAME:latest"
+            echo "  - $FULL_IMAGE_NAME:${{ env.VERSION }}"
             echo "推送状态: ${{ github.event_name != 'pull_request' && '已推送' || '仅构建' }}"
+            echo ""
+            echo "📋 使用方法:"
+            echo "docker pull $FULL_IMAGE_NAME:latest"
+            echo "docker run --gpus all -p 7860:7860 $FULL_IMAGE_NAME:latest"
           else
             echo "❌ XVerse Docker 镜像构建失败!"
+            echo "请检查错误日志并重试"
             exit 1
           fi 
