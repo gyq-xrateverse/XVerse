@@ -69,21 +69,16 @@ RUN pip install -r requirements.txt --no-cache-dir && \
     rm -rf /var/lib/apt/lists/* && \
     pip cache purge
 
-# 安装flash-attn (强制使用预编译wheel避免长时间编译)
+# 跳过flash-attn安装 (用户要求先完成构建，后续手动安装)
 RUN pip cache purge && \
-    echo "直接使用与PyTorch 2.6.0兼容的conda预编译版本..." && \
-    # 方法1：使用conda的预编译版本，专门为PyTorch 2.6.0构建
-    wget -O /tmp/flash_attn.tar.bz2 https://conda.anaconda.org/conda-forge/linux-64/flash-attn-2.7.4-py310hfce3eb0_0.conda && \
-    cd /tmp && tar -xjf flash_attn.tar.bz2 && \
-    pip install --no-deps --no-cache-dir lib/python3.10/site-packages/flash_attn* || \
-    # 方法2：直接使用vllm预编译版本（兼容性更好）
-    (echo "conda版本失败，使用vllm预编译版本..." && \
-     pip install https://files.pythonhosted.org/packages/52/8c/37d8f8e830d75439a5521b31cc0cdac9d17c9d9a86ce1ed762c97965b5e8/vllm_flash_attn-2.6.2-cp310-cp310-manylinux1_x86_64.whl --no-cache-dir) || \
-    # 方法3：最后的源码编译fallback
-    (echo "所有预编译版本都失败，从源码编译（这将需要很长时间）..." && \
-     export TORCH_CUDA_ARCH_LIST="7.0;7.5;8.0;8.6" && \
-     export FLASH_ATTENTION_FORCE_BUILD=TRUE && \
-     pip install flash-attn==2.7.4.post1 --no-build-isolation --no-cache-dir)
+    # 激进的磁盘空间清理
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* && \
+    find /usr/local -name "*.pyc" -delete && \
+    find /usr/local -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true && \
+    df -h && \
+    echo "跳过flash-attn安装，使用torch原生attention。用户可后续手动安装flash-attn。" && \
+    echo "# flash-attn已跳过安装，如需要请运行: pip install flash-attn" > /usr/local/lib/python3.10/dist-packages/flash_attn_install_note.txt
 
 # 更新httpx版本
 RUN pip install httpx==0.23.3
