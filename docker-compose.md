@@ -60,7 +60,8 @@ docker-compose down
 ### 环境变量
 - `START_MODE=gradio` - 启动模式
   - `gradio`: 启动 Gradio 演示界面（默认）
-  - `bash`: 启动 bash shell 用于调试
+  - `bash`: 启动 bash shell 用于手动安装依赖
+  - `setup`: 启动设置模式，显示安装指导
 
 ### GPU 配置
 自动检测并使用所有可用的 NVIDIA GPU。
@@ -141,6 +142,30 @@ services:
 ```
 
 ## 开发模式
+
+### 手动安装Flash-Attention
+
+如果需要手动安装Flash-Attention：
+
+```bash
+# 方法1: 启动bash模式
+START_MODE=bash docker-compose up -d
+
+# 进入容器并安装Flash-Attention
+docker-compose exec xverse bash
+bash /app/scripts/install_flash_attn.sh
+
+# 手动启动应用
+python run_gradio.py
+```
+
+```bash
+# 方法2: 启动setup模式（显示安装指导）
+START_MODE=setup docker-compose up -d
+docker-compose exec xverse bash
+```
+
+### 开发调试
 
 如果需要进行开发或调试：
 
