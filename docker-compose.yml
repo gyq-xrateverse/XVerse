@@ -3,6 +3,8 @@ services:
     image: g-chqo4329-docker.pkg.coding.net/beilv-ai/tools/xverse:latest
     container_name: xverse-app
     restart: unless-stopped
+    tty: true          # 支持交互式终端
+    stdin_open: true   # 保持STDIN开放
     
     # GPU 支持
     deploy:
@@ -26,7 +28,7 @@ services:
     environment:
       - NVIDIA_VISIBLE_DEVICES=all
       - NVIDIA_DRIVER_CAPABILITIES=compute,utility
-      - START_MODE=gradio  # 启动模式：gradio (默认)、bash 或 setup
+      - START_MODE=bash  # 启动模式：gradio (默认)、bash 或 setup
       
     # 健康检查
     healthcheck:

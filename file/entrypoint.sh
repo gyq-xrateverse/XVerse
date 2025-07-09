@@ -108,30 +108,42 @@ elif [ "${START_MODE}" = "bash" ]; then
     echo "启动 bash shell..."
     echo ""
     echo "📝 提示："
-    echo "1. 安装 Flash-Attention："
+    echo "1. 进入容器操作："
+    echo "   docker exec -it xverse-app /bin/bash"
+    echo ""
+    echo "2. 安装 Flash-Attention："
     echo "   bash /app/scripts/install_flash_attn.sh"
     echo ""
-    echo "2. 手动启动应用："
+    echo "3. 手动启动应用："
     echo "   python run_gradio.py"
     echo ""
-    echo "3. 或重启容器使用 gradio 模式"
+    echo "4. 或重启容器使用 gradio 模式"
     echo ""
-    exec /bin/bash
+    echo "🔄 容器将保持运行，等待您的操作..."
+    
+    # 保持容器运行，等待用户通过 docker exec 进入
+    tail -f /dev/null
 elif [ "${START_MODE}" = "setup" ]; then
     echo "🔧 XVerse 设置模式"
     echo ""
     echo "📋 安装步骤："
-    echo "1. 安装 Flash-Attention（推荐）："
+    echo "1. 进入容器操作："
+    echo "   docker exec -it xverse-app /bin/bash"
+    echo ""
+    echo "2. 安装 Flash-Attention（推荐）："
     echo "   bash /app/scripts/install_flash_attn.sh"
     echo ""
-    echo "2. 确保模型文件已映射到 /app/checkpoints"
+    echo "3. 确保模型文件已映射到 /app/checkpoints"
     echo ""
-    echo "3. 启动应用："
+    echo "4. 启动应用："
     echo "   python run_gradio.py"
     echo ""
     echo "💡 或者重启容器设置 START_MODE=gradio"
     echo ""
-    exec /bin/bash
+    echo "🔄 容器将保持运行，等待您的操作..."
+    
+    # 保持容器运行，等待用户通过 docker exec 进入
+    tail -f /dev/null
 else
     echo "启动 Gradio 演示（默认）..."
     python run_gradio.py
