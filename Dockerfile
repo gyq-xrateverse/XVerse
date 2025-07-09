@@ -56,24 +56,18 @@ RUN echo "=== 安装系统依赖和Python环境 ===" \
     && python -m pip install --upgrade pip \
     && echo "=== 系统依赖安装后磁盘空间 ===" && df -h
 
-# 第二阶段：单独安装PyTorch（最大的依赖项）
-RUN echo "=== 开始安装PyTorch ===" && df -h \
-    && pip install torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 \
-       --index-url https://download.pytorch.org/whl/cu118 \
-       --no-cache-dir \
-    && pip cache purge \
-    && rm -rf /tmp/* /var/tmp/* /root/.cache \
-    && find /usr/local -name "*.pyc" -delete \
-    && find /usr/local -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true \
-    && echo "=== PyTorch安装后磁盘空间 ===" && df -h
-
-# 复制requirements.txt并安装其他Python依赖
+# 复制requirements.txt并安装Python依赖
 COPY requirements.txt /tmp/requirements.txt
 
-# 第三阶段：安装其他Python依赖
-RUN echo "=== 开始安装其他Python依赖 ===" && df -h \
-    && pip install -r /tmp/requirements.txt --no-cache-dir \
+# 第二阶段：安装Python依赖（包括PyTorch）
+RUN echo "=== 开始安装Python依赖（包括PyTorch） ===" && df -h \
+    && pip install -r /tmp/requirements.txt \
+       --index-url https://download.pytorch.org/whl/cu118 \
+       --no-cache-dir \
     && pip install httpx==0.23.3 huggingface_hub[cli] --no-cache-dir \
+    && echo "=== 验证PyTorch安装 ===" \
+    && python -c "import torch; print(f'PyTorch版本: {torch.__version__}')" \
+    && python -c "import torch; print(f'CUDA可用: {torch.cuda.is_available()}')" \
     && pip cache purge \
     && rm -rf /tmp/* /var/tmp/* /root/.cache \
     && find /usr/local -name "*.pyc" -delete \
@@ -127,8 +121,6 @@ RUN echo "=== 最终清理和验证 ===" \
     && find /usr/local -name "__pycache__" -type d -exec rm -rf {} + 2>/dev/null || true \
     && echo "=== 验证Python环境 ===" \
     && python --version \
-    && python -c "import torch; print(f'PyTorch版本: {torch.__version__}')" \
-    && python -c "import torch; print(f'CUDA可用: {torch.cuda.is_available()}')" \
     && echo "=== 最终镜像磁盘空间 ===" && df -h
 
 # 暴露端口
