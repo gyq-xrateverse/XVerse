@@ -18,12 +18,19 @@ echo "🧹 清理pip缓存..."
 pip cache purge
 echo ""
 
+# 配置清华源
+echo "⚙️  配置清华源..."
+pip config set global.index-url https://pypi.tuna.tsinghua.edu.cn/simple
+pip config set global.trusted-host pypi.tuna.tsinghua.edu.cn
+echo "清华源配置完成"
+echo ""
+
 # 尝试安装Flash-Attention (按优先级顺序)
 echo "⚡ 开始安装 Flash-Attention..."
 
 # 方法1: VLLM优化版 (最推荐)
-echo "尝试方法1: VLLM优化版..."
-if pip install --no-cache-dir vllm-flash-attn==2.6.2; then
+echo "尝试方法1: VLLM优化版 (清华源)..."
+if pip install --no-cache-dir vllm-flash-attn==2.6.2 -i https://pypi.tuna.tsinghua.edu.cn/simple; then
     echo "✅ 方法1成功: VLLM优化版安装完成"
     INSTALL_SUCCESS=true
 else
@@ -34,8 +41,8 @@ fi
 # 方法2: 官方预编译版
 if [ "$INSTALL_SUCCESS" = false ]; then
     echo ""
-    echo "尝试方法2: 官方预编译版..."
-    if pip install --no-cache-dir flash-attn==2.6.3 --find-links https://download.pytorch.org/whl/torch_stable.html; then
+    echo "尝试方法2: 官方预编译版 (清华源)..."
+    if pip install --no-cache-dir flash-attn==2.6.3 -i https://pypi.tuna.tsinghua.edu.cn/simple; then
         echo "✅ 方法2成功: 官方预编译版安装完成"
         INSTALL_SUCCESS=true
     else
@@ -46,12 +53,26 @@ fi
 # 方法3: 最新稳定版
 if [ "$INSTALL_SUCCESS" = false ]; then
     echo ""
-    echo "尝试方法3: 最新稳定版..."
-    if pip install --no-cache-dir flash-attn==2.7.4.post1; then
+    echo "尝试方法3: 最新稳定版 (清华源)..."
+    if pip install --no-cache-dir flash-attn==2.7.4.post1 -i https://pypi.tuna.tsinghua.edu.cn/simple; then
         echo "✅ 方法3成功: 最新稳定版安装完成"
         INSTALL_SUCCESS=true
     else
         echo "❌ 方法3失败"
+    fi
+fi
+
+# 方法4: 备用官方源
+if [ "$INSTALL_SUCCESS" = false ]; then
+    echo ""
+    echo "尝试方法4: 备用官方源..."
+    pip config unset global.index-url
+    pip config unset global.trusted-host
+    if pip install --no-cache-dir flash-attn==2.6.3 --find-links https://download.pytorch.org/whl/torch_stable.html; then
+        echo "✅ 方法4成功: 备用官方源安装完成"
+        INSTALL_SUCCESS=true
+    else
+        echo "❌ 方法4失败"
     fi
 fi
 
