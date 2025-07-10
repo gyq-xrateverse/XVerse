@@ -97,8 +97,14 @@ WORKDIR /app
 # 复制项目代码
 COPY . /app/
 
-# 创建checkpoints目录
-RUN mkdir -p /app/checkpoints
+# 创建checkpoints目录并下载Resnet50_Final.pth
+RUN mkdir -p /app/checkpoints \
+    && mkdir -p /root/.cache/torch/hub/checkpoints \
+    && echo "=== 下载Resnet50_Final.pth模型 ===" \
+    && curl -L -o /root/.cache/torch/hub/checkpoints/Resnet50_Final.pth \
+        "https://github.com/elliottzheng/face-detection/releases/download/0.0.1/Resnet50_Final.pth" \
+    && echo "=== Resnet50_Final.pth下载完成 ===" \
+    && ls -la /root/.cache/torch/hub/checkpoints/
 
 # 设置模型路径环境变量
 ENV FLORENCE2_MODEL_PATH="/app/checkpoints/Florence-2-large"
@@ -108,6 +114,7 @@ ENV CLIP_MODEL_PATH="/app/checkpoints/clip-vit-large-patch14"
 ENV FLUX_MODEL_PATH="/app/checkpoints/FLUX.1-dev"
 ENV DPG_VQA_MODEL_PATH="/app/checkpoints/mplug_visual-question-answering_coco_large_en"
 ENV DINO_MODEL_PATH="/app/checkpoints/dino-vits16"
+ENV RESNET50_MODEL_PATH="/root/.cache/torch/hub/checkpoints/Resnet50_Final.pth"
 
 # 复制启动脚本并设置权限
 COPY file/entrypoint.sh /app/entrypoint.sh

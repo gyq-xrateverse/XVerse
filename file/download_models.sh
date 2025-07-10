@@ -80,6 +80,15 @@ else
     echo "   下载地址: https://github.com/TreB1eN/InsightFace_Pytorch/releases/download/v1.0/model_ir_se50.pth"
 fi
 
+# Resnet50 Face Detection模型
+if [ -f "/root/.cache/torch/hub/checkpoints/Resnet50_Final.pth" ]; then
+    echo "✓ Resnet50 Face Detection 模型: 已存在"
+else
+    echo "❌ Resnet50 Face Detection 模型: 缺失"
+    echo "   下载地址: https://github.com/elliottzheng/face-detection/releases/download/0.0.1/Resnet50_Final.pth"
+    echo "   目标位置: /root/.cache/torch/hub/checkpoints/Resnet50_Final.pth"
+fi
+
 echo "================================"
 echo ""
 echo "📝 说明："
