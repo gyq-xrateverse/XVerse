@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import time
 import inspect
 from typing import Any, Callable, Dict, List, Optional, Union
 import os
@@ -473,11 +474,12 @@ def quantization(pipe, qtype):
                 "context_embedder",
             ]
             try:
-                quantize(pipe.transformer, weights=quant_level, **extra_quanto_args)
-                quantize(pipe.text_encoder_2, weights=quant_level, **extra_quanto_args)
                 print("[Quantization] Start freezing")
+                quantize(pipe.transformer, weights=quant_level, **extra_quanto_args)
                 freeze(pipe.transformer)
+                quantize(pipe.text_encoder_2, weights=quant_level, **extra_quanto_args)
                 freeze(pipe.text_encoder_2)
+                torch.cuda.empty_cache()
                 print("[Quantization] Finished")
             except Exception as e:
                 if "out of memory" in str(e).lower():
@@ -505,14 +507,14 @@ class CustomFluxPipeline:
     def __init__(
         self,
         config,
-        device="cuda",
+        device=torch.device("cuda"),
         ckpt_root=None,
         ckpt_root_condition=None,
         torch_dtype=torch.bfloat16,
     ):
         model_path = os.getenv("FLUX_MODEL_PATH", "black-forest-labs/FLUX.1-dev")
         print("[CustomFluxPipeline] Loading FLUX Pipeline")
-        self.pipe = FluxPipeline.from_pretrained(model_path, torch_dtype=torch_dtype).to(device)
+        self.pipe = FluxPipeline.from_pretrained(model_path, torch_dtype=torch_dtype)
 
         # self.pipe.vae = self.pipe.vae.to(device, dtype=torch_dtype)
         # self.pipe.transformer = self.pipe.transformer.to(device, dtype=torch_dtype)
@@ -520,8 +522,12 @@ class CustomFluxPipeline:
         self.config = config
         self.device = device
         self.dtype = torch_dtype
+        start = time.time()
         if config["model"].get("dit_quant", "None") != "None":
             quantization(self.pipe, config["model"]["dit_quant"])
+        print(f"Quantization time: {time.time() - start}")
+
+        self.pipe = self.pipe.to(device)
 
         self.modulation_adapters = []
         self.pipe.modulation_adapters = []
@@ -536,6 +542,7 @@ class CustomFluxPipeline:
             if ckpt_root_condition is None and (config["model"]["use_condition_dblock_lora"] or config["model"]["use_condition_sblock_lora"]):
                 ckpt_root_condition = ckpt_root
             load_dit_lora(self, self.pipe, config, torch_dtype, device, f"{ckpt_root}", f"{ckpt_root_condition}", is_training=False)
+        self.pipe.to(device)
 
     def add_modulation_adapter(self, modulation_adapter):
         self.modulation_adapters.append(modulation_adapter)
@@ -546,14 +553,14 @@ class CustomFluxPipeline:
         self.pipe.modulation_adapters = []
         torch.cuda.empty_cache()
 
-def load_clip(self, config, torch_dtype, device, ckpt_dir=None, is_training=False):
+def load_clip(pipeline, config, torch_dtype, device, ckpt_dir=None, is_training=False):
     model_path = os.getenv("CLIP_MODEL_PATH", "openai/clip-vit-large-patch14")
     clip_model = CLIPVisionModelWithProjection.from_pretrained(model_path).to(device, dtype=torch_dtype)
     clip_processor = CLIPProcessor.from_pretrained(model_path)
-    self.pipe.clip_model = clip_model
-    self.pipe.clip_processor = clip_processor
+    pipeline.pipe.clip_model = clip_model
+    pipeline.pipe.clip_processor = clip_processor
 
-def load_dit_lora(self, pipe, config, torch_dtype, device, ckpt_dir=None, condition_ckpt_dir=None, is_training=False):
+def load_dit_lora(pipeline, pipe, config, torch_dtype, device, ckpt_dir=None, condition_ckpt_dir=None, is_training=False):
 
     if not config["model"]["use_condition_dblock_lora"] and not config["model"]["use_condition_sblock_lora"] and not config["model"]["use_dit_lora"]:
         print("[load_dit_lora] no dit lora, no condition lora")
@@ -624,7 +631,7 @@ def load_dit_lora(self, pipe, config, torch_dtype, device, ckpt_dir=None, condit
     lora_layers = [l[1] for l in lora_layers]
     return lora_layers
 
-def load_modulation_adapter(self, config, torch_dtype, device, ckpt_dir=None, is_training=False):
+def load_modulation_adapter(pipeline, config, torch_dtype, device, ckpt_dir=None, is_training=False):
     adapter_type = config["model"]["modulation"]["adapter_type"]
 
     if ckpt_dir is not None and os.path.exists(ckpt_dir):
@@ -672,17 +679,16 @@ def load_modulation_adapter(self, config, torch_dtype, device, ckpt_dir=None, is
                 print(e)
     else:
         modulation_adapter.requires_grad_(False)
-
     modulation_adapter.to(device, dtype=torch_dtype)
     return modulation_adapter
 
 
-def load_ckpt(self, ckpt_dir, is_training=False):
-    if self.config["model"]["use_dit_lora"]:
-        self.pipe.transformer.delete_adapters(["subject"])
+def load_ckpt(pipeline, ckpt_dir, is_training=False):
+    if pipeline.config["model"]["use_dit_lora"]:
+        pipeline.pipe.transformer.delete_adapters(["subject"])
         lora_path = f"{ckpt_dir}/pytorch_lora_weights.safetensors"
         print(f"Loading DIT Lora from {lora_path}")
-        self.pipe.load_lora_weights(lora_path, adapter_name="subject")
+        pipeline.pipe.load_lora_weights(lora_path, adapter_name="subject")
 
         
 
